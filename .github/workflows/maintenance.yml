@@ -80,7 +80,7 @@ jobs:
 
       - name: Open/update tracking issue if anything needs attention
         if: steps.npm_audit.outcome == 'failure' || steps.cargo_audit.outcome == 'failure' || steps.drift.outcome == 'failure'
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         with:
           script: |
             const fs = require('fs');
