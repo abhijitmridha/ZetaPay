@@ -403,36 +403,7 @@ Production build: passed
 
 ## CI/CD
 
-The repository includes GitHub Actions workflows for:
-
-- Frontend linting, formatting, type-checking, tests, and production build.
-- Contract formatting, clippy, tests, WASM build, and artifact upload.
-- Circuit validation.
-- Security checks.
-- Release automation.
-- Vercel deployment with health checks and rollback.
-
-Main workflow files:
-
-```text
-.github/workflows/ci.yml
-.github/workflows/ci-frontend.yml
-.github/workflows/ci-contracts.yml
-.github/workflows/ci-circuits.yml
-.github/workflows/security.yml
-.github/workflows/cd-deploy.yml
-.github/workflows/release.yml
-.github/workflows/maintenance.yml
-```
-
-Documentation:
-
-- `docs/ci-cd/README.md`
-- `docs/ci-cd/workflows.md`
-- `docs/ci-cd/deployment.md`
-- `docs/ci-cd/secrets.md`
-- `docs/ci-cd/release-process.md`
-- `docs/ci-cd/troubleshooting.md`
+<img width="1458" height="801" alt="Screenshot 2026-07-19 at 1 36 01 AM" src="https://github.com/user-attachments/assets/1090cff1-8a13-4509-bc5b-62964c2988fd" />
 
 ## Deployment
 
