@@ -46,6 +46,7 @@ jobs:
     outputs:
       environment: ${{ steps.resolve.outputs.environment }}
       ref: ${{ steps.resolve.outputs.ref }}
+      deploy_enabled: ${{ steps.vercel-preflight.outputs.deploy_enabled }}
     steps:
       - id: resolve
         env:
@@ -86,9 +87,38 @@ jobs:
           esac
           echo "OK: environment='$env' ref='$ref' is an approved combination."
 
+      - name: Check Vercel deployment credentials
+        id: vercel-preflight
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+        run: |
+          set -euo pipefail
+          if [ -n "$VERCEL_TOKEN" ] && [ -n "$VERCEL_ORG_ID" ] && [ -n "$VERCEL_PROJECT_ID" ]; then
+            echo "deploy_enabled=true" >> "$GITHUB_OUTPUT"
+            echo "Vercel credentials are configured."
+          else
+            echo "deploy_enabled=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::Vercel deployment skipped because VERCEL_TOKEN, VERCEL_ORG_ID, or VERCEL_PROJECT_ID is not configured."
+          fi
+
+  deployment-skipped:
+    name: Deployment not configured
+    needs: context
+    if: needs.context.outputs.deploy_enabled != 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Report skipped deployment
+        env:
+          DEPLOY_ENVIRONMENT: ${{ needs.context.outputs.environment }}
+        run: |
+          echo "::notice::Skipping $DEPLOY_ENVIRONMENT deployment until Vercel secrets are configured."
+
   deploy:
     name: Deploy to ${{ needs.context.outputs.environment }}
     needs: context
+    if: needs.context.outputs.deploy_enabled == 'true'
     runs-on: ubuntu-latest
     environment:
       name: ${{ needs.context.outputs.environment }}
@@ -106,14 +136,18 @@ jobs:
       - name: Deploy to Vercel
         id: deploy
         env:
+          DEPLOY_ENVIRONMENT: ${{ needs.context.outputs.environment }}
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
         run: |
-          bash scripts/deploy/deploy.sh "${{ needs.context.outputs.environment }}" 2>&1 | tee deploy.log
+          set -o pipefail
+          bash scripts/deploy/deploy.sh "$DEPLOY_ENVIRONMENT" 2>&1 | tee deploy.log
 
       - name: Post-deploy health check
-        run: bash scripts/deploy/health-check.sh "${{ steps.deploy.outputs.url }}"
+        env:
+          DEPLOY_URL: ${{ steps.deploy.outputs.url }}
+        run: bash scripts/deploy/health-check.sh "$DEPLOY_URL"
 
       - name: Upload deployment log
         if: always()
@@ -127,7 +161,7 @@ jobs:
   rollback:
     name: Rollback ${{ needs.context.outputs.environment }}
     needs: [context, deploy]
-    if: failure()
+    if: failure() && needs.context.outputs.deploy_enabled == 'true'
     runs-on: ubuntu-latest
     environment: ${{ needs.context.outputs.environment }}
     steps:
@@ -137,10 +171,13 @@ jobs:
 
       - name: Roll back to previous deployment
         env:
+          DEPLOY_ENVIRONMENT: ${{ needs.context.outputs.environment }}
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
-        run: bash scripts/deploy/rollback.sh "${{ needs.context.outputs.environment }}" | tee rollback.log
+        run: |
+          set -o pipefail
+          bash scripts/deploy/rollback.sh "$DEPLOY_ENVIRONMENT" | tee rollback.log
 
       - name: Upload rollback log
         if: always()
