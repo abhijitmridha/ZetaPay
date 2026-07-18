@@ -18,7 +18,7 @@ jobs:
     name: cargo fmt & clippy
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
 
       - uses: ./.github/actions/setup-rust
 
@@ -39,7 +39,7 @@ jobs:
       matrix:
         crate: [zetapay-verifier, zetapay-payroll, zetapay-pool]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
 
       - uses: ./.github/actions/setup-rust
 
@@ -51,7 +51,7 @@ jobs:
     needs: [lint, test]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
 
       - uses: ./.github/actions/setup-rust
         with:
@@ -78,7 +78,7 @@ jobs:
           done
 
       - name: Upload WASM artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: soroban-contracts-${{ github.sha }}
           path: contracts/target/wasm32v1-none/release/*.wasm

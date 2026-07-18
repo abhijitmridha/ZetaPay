@@ -48,20 +48,28 @@ jobs:
       ref: ${{ steps.resolve.outputs.ref }}
     steps:
       - id: resolve
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          INPUT_ENVIRONMENT: ${{ inputs.environment }}
+          INPUT_REF: ${{ inputs.ref }}
+          WORKFLOW_HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
         run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            echo "environment=${{ inputs.environment }}" >> "$GITHUB_OUTPUT"
-            echo "ref=${{ inputs.ref }}" >> "$GITHUB_OUTPUT"
+          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+            echo "environment=$INPUT_ENVIRONMENT" >> "$GITHUB_OUTPUT"
+            echo "ref=$INPUT_REF" >> "$GITHUB_OUTPUT"
           else
             echo "environment=development" >> "$GITHUB_OUTPUT"
-            echo "ref=${{ github.event.workflow_run.head_sha }}" >> "$GITHUB_OUTPUT"
+            echo "ref=$WORKFLOW_HEAD_SHA" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Enforce branch/tag policy per environment
+        env:
+          DEPLOY_ENVIRONMENT: ${{ steps.resolve.outputs.environment }}
+          DEPLOY_REF: ${{ steps.resolve.outputs.ref }}
         run: |
           set -euo pipefail
-          env="${{ steps.resolve.outputs.environment }}"
-          ref="${{ steps.resolve.outputs.ref }}"
+          env="$DEPLOY_ENVIRONMENT"
+          ref="$DEPLOY_REF"
           case "$env" in
             production)
               if [ "$ref" != "main" ] && [[ "$ref" != v[0-9]* ]]; then
@@ -89,7 +97,7 @@ jobs:
       group: cd-deploy-${{ needs.context.outputs.environment }}
       cancel-in-progress: false
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
         with:
           ref: ${{ needs.context.outputs.ref }}
 
@@ -109,7 +117,7 @@ jobs:
 
       - name: Upload deployment log
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: deploy-log-${{ needs.context.outputs.environment }}-${{ github.run_id }}
           path: deploy.log
@@ -123,7 +131,7 @@ jobs:
     runs-on: ubuntu-latest
     environment: ${{ needs.context.outputs.environment }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
         with:
           ref: ${{ needs.context.outputs.ref }}
 
@@ -136,7 +144,7 @@ jobs:
 
       - name: Upload rollback log
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: rollback-log-${{ needs.context.outputs.environment }}-${{ github.run_id }}
           path: rollback.log

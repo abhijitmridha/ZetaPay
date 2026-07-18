@@ -28,10 +28,10 @@ jobs:
       contracts: ${{ steps.filter.outputs.contracts }}
       circuits: ${{ steps.filter.outputs.circuits }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
 
       - id: filter
-        uses: dorny/paths-filter@v3
+        uses: dorny/paths-filter@d1c1ffe0248fe513906c8e24db8ea791d46f8590
         with:
           filters: |
             frontend:

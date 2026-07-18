@@ -72,11 +72,11 @@ export type NormalizedChainPayrollRecord = {
 
 function log(label: string, value?: unknown) {
   if (value === undefined) {
-    console.log(`[zetapay] ${label}`);
+    console.log('[zetapay]', label);
     return;
   }
 
-  console.log(`[zetapay] ${label}`, value);
+  console.log('[zetapay]', label, value);
 }
 
 function network() {

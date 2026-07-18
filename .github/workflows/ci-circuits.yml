@@ -21,13 +21,13 @@ jobs:
     name: Compile circuits
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
 
       - uses: ./.github/actions/setup-node
 
       - name: Cache circom binary
         id: circom-cache
-        uses: actions/cache@v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830
         with:
           path: ~/.local/bin/circom
           key: circom-${{ env.CIRCOM_VERSION }}-${{ runner.os }}
@@ -76,7 +76,7 @@ jobs:
           check circuits/pool/build/withdraw_js/withdraw.wasm
 
       - name: Upload circuit artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: circuits-${{ github.sha }}
           path: |

@@ -22,13 +22,13 @@ runs:
   using: composite
   steps:
     - name: Setup Rust toolchain
-      uses: dtolnay/rust-toolchain@stable
+      uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4
       with:
         targets: wasm32v1-none
         components: ${{ inputs.components }}
 
     - name: Cache Cargo registry & build output
-      uses: Swatinem/rust-cache@v2
+      uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32
       with:
         workspaces: contracts -> target
         cache-on-failure: true
@@ -36,7 +36,7 @@ runs:
     - name: Cache Stellar CLI binary
       if: inputs.install-stellar-cli == 'true'
       id: stellar-cli-cache
-      uses: actions/cache@v4
+      uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830
       with:
         path: ~/.local/stellar-cli/bin
         key: stellar-cli-${{ inputs.stellar-cli-version }}-${{ runner.os }}-${{ runner.arch }}
@@ -44,9 +44,11 @@ runs:
     - name: Install Stellar CLI (prebuilt release binary)
       if: inputs.install-stellar-cli == 'true' && steps.stellar-cli-cache.outputs.cache-hit != 'true'
       shell: bash
+      env:
+        STELLAR_CLI_VERSION: ${{ inputs.stellar-cli-version }}
       run: |
         set -euo pipefail
-        version="${{ inputs.stellar-cli-version }}"
+        version="$STELLAR_CLI_VERSION"
         mkdir -p ~/.local/stellar-cli/bin
         curl -fsSL -o /tmp/stellar-cli.tar.gz \
           "https://github.com/stellar/stellar-cli/releases/download/v${version}/stellar-cli-${version}-x86_64-unknown-linux-gnu.tar.gz"
