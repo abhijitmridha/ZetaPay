@@ -27,7 +27,7 @@ jobs:
 
       - name: Cache circom binary
         id: circom-cache
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ~/.local/bin/circom
           key: circom-${{ env.CIRCOM_VERSION }}-${{ runner.os }}
