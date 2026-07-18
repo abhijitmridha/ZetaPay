@@ -1,0 +1,8 @@
+{
+  "secret": "123456789",
+  "nullifier": "987654321",
+  "amount": "10000000",
+  "token": "USDC:testnet",
+  "salt": "55555555",
+  "network": "stellar testnet"
+}
