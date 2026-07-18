@@ -468,15 +468,15 @@ deploy/environments/production.env.example
 
 Use this section to record live deployment results after deploying to Stellar.
 
-| Item                            | Value                               |
-| ------------------------------- | ----------------------------------- |
-| Network                         | `testnet`                           |
-| Verifier contract ID            | `<fill after deployment>`           |
-| Payroll contract ID             | `<fill after deployment>`           |
-| Pool contract ID                | `<fill after deployment>`           |
-| Initialization transaction hash | `<fill after initialization>`       |
-| Sample payroll transaction hash | `<fill after contract interaction>` |
-| Sample pool transaction hash    | `<fill after contract interaction>` |
+| Item                            | Value                                                      |
+| ------------------------------- | ---------------------------------------------------------- |
+| Network                         | `testnet`                                                  |
+| Verifier contract ID            | `CAIZXZZ6SCPKZ5O2677O7BNKM5VBZPWNSGG3MSA5PUIX7K6P4XJV7NRY` |
+| Payroll contract ID             | `CDBMRZZWIAD2REFZXMH2K3FZUF5YTLD5H67NHB64ZYALAVCK24SKNFOK` |
+| Pool contract ID                | `CBOCTHV6GAQ47JKTAYPWOQYPBL5E2NYC7XEJRSBLCFIMVCQSY3EAH55I` |
+| Initialization transaction hash | `<fill after initialization>`                              |
+| Sample payroll transaction hash | `<fill after contract interaction>`                        |
+| Sample pool transaction hash    | `<fill after contract interaction>`                        |
 
 ## Demo Walkthrough
 
