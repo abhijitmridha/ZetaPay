@@ -76,7 +76,7 @@ jobs:
           check circuits/pool/build/withdraw_js/withdraw.wasm
 
       - name: Upload circuit artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: circuits-${{ github.sha }}
           path: |

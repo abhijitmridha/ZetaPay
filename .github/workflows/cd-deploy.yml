@@ -109,7 +109,7 @@ jobs:
 
       - name: Upload deployment log
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: deploy-log-${{ needs.context.outputs.environment }}-${{ github.run_id }}
           path: deploy.log
@@ -136,7 +136,7 @@ jobs:
 
       - name: Upload rollback log
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: rollback-log-${{ needs.context.outputs.environment }}-${{ github.run_id }}
           path: rollback.log
