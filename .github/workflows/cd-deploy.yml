@@ -89,7 +89,7 @@ jobs:
       group: cd-deploy-${{ needs.context.outputs.environment }}
       cancel-in-progress: false
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           ref: ${{ needs.context.outputs.ref }}
 
@@ -123,7 +123,7 @@ jobs:
     runs-on: ubuntu-latest
     environment: ${{ needs.context.outputs.environment }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           ref: ${{ needs.context.outputs.ref }}
 
