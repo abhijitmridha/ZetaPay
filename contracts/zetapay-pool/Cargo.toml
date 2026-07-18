@@ -1,0 +1,17 @@
+[package]
+name = "zetapay-pool"
+version = "0.1.0"
+edition = "2021"
+publish = false
+rust-version = "1.89.0"
+
+[lib]
+crate-type = ["lib", "cdylib"]
+doctest = false
+
+[dependencies]
+soroban-sdk = { workspace = true }
+zetapay-verifier = { path = "../zetapay-verifier" }
+
+[dev-dependencies]
+soroban-sdk = { workspace = true, features = ["testutils"] }
