@@ -1,0 +1,102 @@
+name: CI
+
+# Orchestrates continuous integration: detects which parts of the monorepo
+# changed, runs only the relevant reusable CI workflows, then aggregates the
+# results into a single required status check ("CI Quality Gate") so branch
+# protection only needs to reference one job regardless of how many
+# sub-workflows exist underneath.
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  changes:
+    name: Detect changed paths
+    runs-on: ubuntu-latest
+    outputs:
+      frontend: ${{ steps.filter.outputs.frontend }}
+      contracts: ${{ steps.filter.outputs.contracts }}
+      circuits: ${{ steps.filter.outputs.circuits }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - id: filter
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            frontend:
+              - 'src/**'
+              - 'public/**'
+              - 'package.json'
+              - 'yarn.lock'
+              - 'tsconfig.json'
+              - 'next.config.ts'
+              - 'postcss.config.mjs'
+              - 'eslint.config.mjs'
+              - '.prettierrc'
+              - '.prettierignore'
+              - 'knip.json'
+              - 'drizzle.config.ts'
+              - 'drizzle/**'
+              - '.env.example'
+            contracts:
+              - 'contracts/**'
+            circuits:
+              - 'circuits/**'
+
+  frontend:
+    name: Frontend
+    needs: changes
+    if: github.event_name != 'pull_request' || needs.changes.outputs.frontend == 'true'
+    uses: ./.github/workflows/ci-frontend.yml
+
+  contracts:
+    name: Contracts
+    needs: changes
+    if: github.event_name != 'pull_request' || needs.changes.outputs.contracts == 'true'
+    uses: ./.github/workflows/ci-contracts.yml
+
+  circuits:
+    name: Circuits
+    needs: changes
+    if: github.event_name != 'pull_request' || needs.changes.outputs.circuits == 'true'
+    uses: ./.github/workflows/ci-circuits.yml
+
+  quality-gate:
+    name: CI Quality Gate
+    if: always()
+    needs: [changes, frontend, contracts, circuits]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify all required jobs succeeded or were correctly skipped
+        run: |
+          set -euo pipefail
+          declare -A results=(
+            [frontend]="${{ needs.frontend.result }}"
+            [contracts]="${{ needs.contracts.result }}"
+            [circuits]="${{ needs.circuits.result }}"
+          )
+          failed=0
+          for job in "${!results[@]}"; do
+            result="${results[$job]}"
+            echo "$job: $result"
+            if [[ "$result" != "success" && "$result" != "skipped" ]]; then
+              echo "::error::Required job '$job' finished with result: $result"
+              failed=1
+            fi
+          done
+          if [[ "$failed" -eq 1 ]]; then
+            echo "::error::One or more required CI jobs failed."
+            exit 1
+          fi
+          echo "All required jobs passed (or were skipped due to no relevant changes)."

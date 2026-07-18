@@ -1,0 +1,99 @@
+name: CI - Frontend
+
+# Reusable workflow: validates the Next.js app (lint, formatting, types,
+# dead-code, build). Called from ci.yml only when frontend-relevant paths
+# change, and always callable manually via workflow_call for debugging.
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+env:
+  # Dummy values so `next build` can statically evaluate modules that read
+  # process.env at import time (e.g. src/lib/supabase/client.ts throws if
+  # unset). No real secrets are used or needed to validate the build.
+  NEXT_PUBLIC_SUPABASE_URL: https://ci-placeholder.supabase.co
+  NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-placeholder-anon-key
+  SUPABASE_SERVICE_ROLE_KEY: ci-placeholder-service-role-key
+  DATABASE_URL: postgresql://ci:ci@localhost:5432/zetapay
+  DIRECT_URL: postgresql://ci:ci@localhost:5432/zetapay
+  NEXT_PUBLIC_APP_URL: http://localhost:3000
+  TOKEN_ENCRYPTION_KEY: '0000000000000000000000000000000000000000000000000000000000000000'
+  NEXT_PUBLIC_STELLAR_NETWORK: testnet
+  NEXT_PUBLIC_SOROBAN_RPC: https://soroban-testnet.stellar.org
+  NEXT_PUBLIC_STELLAR_HORIZON_URL: https://horizon-testnet.stellar.org
+  STELLAR_SOURCE_ACCOUNT: zetapay-deployer
+  ZETAPAY_VERIFIER_CONTRACT_ID: CIPLACEHOLDERCONTRACTID000000000000000000000000000
+  ZETAPAY_PAYROLL_CONTRACT_ID: CIPLACEHOLDERCONTRACTID000000000000000000000000000
+  ZETAPAY_POOL_CONTRACT_ID: CIPLACEHOLDERCONTRACTID000000000000000000000000000
+  NEXT_PUBLIC_XLM_TOKEN_CONTRACT: CIPLACEHOLDERCONTRACTID000000000000000000000000000
+  NEXT_PUBLIC_USDC_TOKEN_CONTRACT: CIPLACEHOLDERCONTRACTID000000000000000000000000000
+
+jobs:
+  quality:
+    name: Lint, format, types, dead code
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: ./.github/actions/setup-node
+
+      - name: Verify yarn.lock is in sync
+        run: bash scripts/ci/check-lockfile.sh
+
+      - name: Validate environment configuration docs
+        run: yarn validate-env
+
+      - name: TypeScript type-check
+        run: yarn type-check
+
+      - name: ESLint (zero warnings)
+        run: yarn lint:check
+
+      - name: Frontend tests
+        run: yarn test:frontend
+
+      - name: Prettier format check
+        run: yarn format:check
+
+      - name: Dead code / unused exports (knip)
+        # Advisory for now: this is knip's first introduction to the repo and
+        # it surfaces a real pre-existing baseline of findings (unused
+        # components, exports, deps) that need a one-time human triage before
+        # this can safely block merges. Flip to blocking once that triage is
+        # done - see docs/ci-cd/troubleshooting.md.
+        continue-on-error: true
+        run: yarn knip
+
+  build:
+    name: Production build
+    needs: quality
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: ./.github/actions/setup-node
+
+      - name: Build Next.js app
+        run: yarn build
+
+      - name: Validate static assets & bundle output
+        run: |
+          test -d .next -a "$(ls -A .next)" || { echo "::error::.next build output is empty"; exit 1; }
+          test -f .next/BUILD_ID || { echo "::error::.next/BUILD_ID missing - build did not complete"; exit 1; }
+          test -d public && echo "Static assets present in public/"
+          echo "Build output:"
+          du -sh .next
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: nextjs-build-${{ github.sha }}
+          path: |
+            .next/BUILD_ID
+            .next/build-manifest.json
+            .next/routes-manifest.json
+            .next/static
+          retention-days: 7
+          if-no-files-found: warn

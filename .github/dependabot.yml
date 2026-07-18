@@ -1,0 +1,56 @@
+version: 2
+
+updates:
+  # Frontend / tooling dependencies (yarn)
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    groups:
+      next-react:
+        patterns:
+          - 'next'
+          - 'react'
+          - 'react-dom'
+          - 'eslint-config-next'
+      eslint-prettier:
+        patterns:
+          - 'eslint*'
+          - 'prettier*'
+      types:
+        patterns:
+          - '@types/*'
+    open-pull-requests-limit: 10
+    labels:
+      - dependencies
+      - javascript
+    commit-message:
+      prefix: 'chore(deps)'
+
+  # Soroban / Rust contract dependencies
+  - package-ecosystem: cargo
+    directory: /contracts
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 10
+    labels:
+      - dependencies
+      - rust
+      - contracts
+    commit-message:
+      prefix: 'chore(deps)'
+
+  # GitHub Actions versions
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 10
+    labels:
+      - dependencies
+      - ci
+    commit-message:
+      prefix: 'chore(ci)'

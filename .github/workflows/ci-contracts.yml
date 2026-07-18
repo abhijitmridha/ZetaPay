@@ -1,0 +1,86 @@
+name: CI - Soroban Contracts
+
+# Reusable workflow: builds, lints, and tests the Soroban smart contract
+# workspace under contracts/. Called from ci.yml only when contract-relevant
+# paths change, and always callable manually via workflow_call for debugging.
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    working-directory: contracts
+
+jobs:
+  lint:
+    name: cargo fmt & clippy
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: ./.github/actions/setup-rust
+
+      - name: Verify Cargo.lock is up to date
+        run: cargo check --locked --workspace --quiet
+
+      - name: cargo fmt --check
+        run: cargo fmt --all -- --check
+
+      - name: cargo clippy (deny warnings)
+        run: cargo clippy --workspace --target wasm32v1-none -- -D warnings
+
+  test:
+    name: cargo test (${{ matrix.crate }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        crate: [zetapay-verifier, zetapay-payroll, zetapay-pool]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: ./.github/actions/setup-rust
+
+      - name: cargo test -p ${{ matrix.crate }}
+        run: cargo test --locked -p ${{ matrix.crate }} -- --nocapture
+
+  build:
+    name: Build & validate WASM artifacts
+    needs: [lint, test]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: ./.github/actions/setup-rust
+        with:
+          install-stellar-cli: 'true'
+
+      - name: stellar contract build
+        run: stellar contract build
+
+      - name: Validate compiled WASM artifacts
+        run: |
+          set -euo pipefail
+          out_dir="target/wasm32v1-none/release"
+          expected="zetapay_verifier.wasm zetapay_payroll.wasm zetapay_pool.wasm"
+          for wasm in $expected; do
+            path="$out_dir/$wasm"
+            if [ ! -s "$path" ]; then
+              echo "::error::Expected contract artifact missing or empty: $path"
+              exit 1
+            fi
+            echo "==> Inspecting $wasm"
+            stellar contract info interface --wasm "$path" >/dev/null
+            size=$(stat -c%s "$path" 2>/dev/null || stat -f%z "$path")
+            echo "$wasm OK (${size} bytes)"
+          done
+
+      - name: Upload WASM artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: soroban-contracts-${{ github.sha }}
+          path: contracts/target/wasm32v1-none/release/*.wasm
+          retention-days: 14
+          if-no-files-found: error

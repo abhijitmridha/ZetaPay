@@ -1,0 +1,42 @@
+name: Setup Node & Yarn
+description: >
+  Installs the pinned Node.js version, restores the Yarn cache, and installs
+  dependencies with a frozen lockfile so every job resolves identical
+  dependency trees.
+
+inputs:
+  install:
+    description: Whether to run `yarn install --frozen-lockfile` after setup.
+    required: false
+    default: 'true'
+  node-version:
+    description: Node.js version to install.
+    required: false
+    default: '22.22.1'
+
+runs:
+  using: composite
+  steps:
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ inputs.node-version }}
+        cache: yarn
+
+    - name: Get Yarn cache directory
+      id: yarn-cache-dir
+      shell: bash
+      run: echo "dir=$(yarn cache dir)" >> "$GITHUB_OUTPUT"
+
+    - name: Cache Yarn packages
+      uses: actions/cache@v4
+      with:
+        path: ${{ steps.yarn-cache-dir.outputs.dir }}
+        key: ${{ runner.os }}-yarn-${{ hashFiles('**/yarn.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-yarn-
+
+    - name: Install dependencies (frozen lockfile)
+      if: inputs.install == 'true'
+      shell: bash
+      run: yarn install --frozen-lockfile --prefer-offline

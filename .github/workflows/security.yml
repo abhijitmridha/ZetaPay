@@ -1,0 +1,166 @@
+name: Security
+
+# Dependency vulnerability scanning, secret scanning, license compliance and
+# lightweight SAST. Runs on every PR and push to main, plus a weekly
+# schedule so newly disclosed advisories are caught even without code
+# changes. Kept separate from ci.yml so security policy can evolve (and be
+# made a required check) independently of build/test CI.
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  schedule:
+    - cron: '0 6 * * 1' # Monday 06:00 UTC
+  workflow_dispatch:
+
+concurrency:
+  group: security-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  GITLEAKS_VERSION: '8.30.1'
+
+jobs:
+  dependency-review:
+    name: Dependency review (PR diff)
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Dependency Review
+        uses: actions/dependency-review-action@v4
+        with:
+          fail-on-severity: high
+          comment-summary-in-pr: always
+
+  npm-audit:
+    name: npm dependency audit (yarn)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: ./.github/actions/setup-node
+
+      - name: yarn audit (fail on high/critical)
+        run: yarn audit --level high
+
+  cargo-audit:
+    name: Rust dependency audit (cargo-audit)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: contracts
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: ./.github/actions/setup-rust
+
+      - name: Install cargo-audit
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-audit
+
+      - name: cargo audit
+        run: cargo audit --file Cargo.lock
+
+  license-check:
+    name: License compliance (npm deps)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: ./.github/actions/setup-node
+
+      - name: Check dependency licenses
+        run: |
+          set -euo pipefail
+          echo "Full license summary (informational, includes copyleft ZK deps e.g. snarkjs/circomlib which are GPL-3.0 and load-bearing for this project):"
+          npx --yes license-checker --production --excludePackages "zetapay@0.1.0" --summary
+          echo ""
+          echo "Failing only on licenses incompatible with any distribution (AGPL/SSPL):"
+          npx --yes license-checker --production --excludePackages "zetapay@0.1.0" \
+            --failOn "AGPL-1.0;AGPL-3.0;SSPL-1.0"
+
+  secret-scan:
+    name: Secret scanning (gitleaks)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install gitleaks
+        run: |
+          set -euo pipefail
+          curl -fsSL -o /tmp/gitleaks.tar.gz \
+            "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+          sudo tar -xzf /tmp/gitleaks.tar.gz -C /usr/local/bin gitleaks
+
+      - name: gitleaks detect
+        run: gitleaks detect --source . --config .gitleaks.toml --redact --verbose
+
+  sast-semgrep:
+    name: SAST (semgrep)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install semgrep
+        run: pip install --quiet semgrep
+
+      - name: Run semgrep
+        run: |
+          semgrep scan \
+            --config p/default \
+            --config p/typescript \
+            --config p/rust \
+            --error \
+            --metrics=off \
+            --exclude 'contracts/target' \
+            --exclude '.next' \
+            --exclude 'circuits/*/build'
+
+  security-gate:
+    name: Security Gate
+    if: always()
+    needs:
+      [dependency-review, npm-audit, cargo-audit, license-check, secret-scan, sast-semgrep]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify all required security jobs succeeded or were correctly skipped
+        run: |
+          set -euo pipefail
+          declare -A results=(
+            [dependency-review]="${{ needs.dependency-review.result }}"
+            [npm-audit]="${{ needs.npm-audit.result }}"
+            [cargo-audit]="${{ needs.cargo-audit.result }}"
+            [license-check]="${{ needs.license-check.result }}"
+            [secret-scan]="${{ needs.secret-scan.result }}"
+            [sast-semgrep]="${{ needs.sast-semgrep.result }}"
+          )
+          failed=0
+          for job in "${!results[@]}"; do
+            result="${results[$job]}"
+            echo "$job: $result"
+            if [[ "$result" != "success" && "$result" != "skipped" ]]; then
+              echo "::error::Required job '$job' finished with result: $result"
+              failed=1
+            fi
+          done
+          if [[ "$failed" -eq 1 ]]; then
+            echo "::error::One or more required security jobs failed."
+            exit 1
+          fi
+          echo "All required security jobs passed (or were correctly skipped)."

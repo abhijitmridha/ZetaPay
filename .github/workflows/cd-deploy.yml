@@ -1,0 +1,144 @@
+name: CD - Deploy
+
+# Continuous deployment to Vercel.
+#
+# Triggers:
+#   1. Automatically after the "CI" workflow succeeds on main -> deploys to
+#      the "development" GitHub Environment. This is the only fully
+#      automatic path; staging and production are always explicit,
+#      human-initiated promotions.
+#   2. workflow_dispatch -> deploy any ref to any environment. Production
+#      deploys are gated by the "production" GitHub Environment's required
+#      reviewers (configured in repo Settings > Environments), so the run
+#      pauses for approval before touching anything.
+#
+# App runtime configuration (Supabase, database, Stellar network, contract
+# IDs) lives in the Vercel project's own per-environment env vars, pulled by
+# `vercel pull` at deploy time - see scripts/deploy/deploy.sh. GitHub only
+# needs to store the Vercel API credentials themselves.
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Target environment
+        type: choice
+        options: [development, staging, production]
+        default: development
+        required: true
+      ref:
+        description: Git ref to deploy (branch, tag, or SHA)
+        default: main
+        required: true
+
+permissions:
+  contents: read
+  deployments: write
+
+jobs:
+  context:
+    name: Resolve deployment context
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    outputs:
+      environment: ${{ steps.resolve.outputs.environment }}
+      ref: ${{ steps.resolve.outputs.ref }}
+    steps:
+      - id: resolve
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "environment=${{ inputs.environment }}" >> "$GITHUB_OUTPUT"
+            echo "ref=${{ inputs.ref }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "environment=development" >> "$GITHUB_OUTPUT"
+            echo "ref=${{ github.event.workflow_run.head_sha }}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Enforce branch/tag policy per environment
+        run: |
+          set -euo pipefail
+          env="${{ steps.resolve.outputs.environment }}"
+          ref="${{ steps.resolve.outputs.ref }}"
+          case "$env" in
+            production)
+              if [ "$ref" != "main" ] && [[ "$ref" != v[0-9]* ]]; then
+                echo "::error::Production may only deploy from 'main' or a version tag (v*), got '$ref'."
+                exit 1
+              fi
+              ;;
+            staging)
+              if [ "$ref" != "main" ] && [[ "$ref" != release/* ]]; then
+                echo "::error::Staging may only deploy from 'main' or a 'release/*' branch, got '$ref'."
+                exit 1
+              fi
+              ;;
+          esac
+          echo "OK: environment='$env' ref='$ref' is an approved combination."
+
+  deploy:
+    name: Deploy to ${{ needs.context.outputs.environment }}
+    needs: context
+    runs-on: ubuntu-latest
+    environment:
+      name: ${{ needs.context.outputs.environment }}
+      url: ${{ steps.deploy.outputs.url }}
+    concurrency:
+      group: cd-deploy-${{ needs.context.outputs.environment }}
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.context.outputs.ref }}
+
+      - uses: ./.github/actions/setup-node
+
+      - name: Deploy to Vercel
+        id: deploy
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+        run: |
+          bash scripts/deploy/deploy.sh "${{ needs.context.outputs.environment }}" 2>&1 | tee deploy.log
+
+      - name: Post-deploy health check
+        run: bash scripts/deploy/health-check.sh "${{ steps.deploy.outputs.url }}"
+
+      - name: Upload deployment log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: deploy-log-${{ needs.context.outputs.environment }}-${{ github.run_id }}
+          path: deploy.log
+          retention-days: 30
+          if-no-files-found: warn
+
+  rollback:
+    name: Rollback ${{ needs.context.outputs.environment }}
+    needs: [context, deploy]
+    if: failure()
+    runs-on: ubuntu-latest
+    environment: ${{ needs.context.outputs.environment }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.context.outputs.ref }}
+
+      - name: Roll back to previous deployment
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+        run: bash scripts/deploy/rollback.sh "${{ needs.context.outputs.environment }}" | tee rollback.log
+
+      - name: Upload rollback log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: rollback-log-${{ needs.context.outputs.environment }}-${{ github.run_id }}
+          path: rollback.log
+          retention-days: 30
+          if-no-files-found: warn

@@ -1,0 +1,62 @@
+name: Release
+
+# Automated semantic versioning via release-please: every merge to main that
+# contains Conventional Commits (feat:, fix:, etc.) accumulates into a
+# standing "release PR" that bumps package.json's version and updates
+# CHANGELOG.md. Merging that PR triggers the tag + GitHub Release, and this
+# workflow then attaches the built Soroban contract WASM binaries (with
+# checksums) to that release as downloadable, versioned artifacts.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  release-please:
+    name: release-please
+    runs-on: ubuntu-latest
+    outputs:
+      release_created: ${{ steps.release.outputs.release_created }}
+      tag_name: ${{ steps.release.outputs.tag_name }}
+    steps:
+      - uses: googleapis/release-please-action@v4
+        id: release
+        with:
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
+
+  attach-release-artifacts:
+    name: Attach contract artifacts to release
+    needs: release-please
+    if: needs.release-please.outputs.release_created == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.release-please.outputs.tag_name }}
+
+      - uses: ./.github/actions/setup-rust
+        with:
+          install-stellar-cli: 'true'
+
+      - name: Build contracts
+        working-directory: contracts
+        run: stellar contract build
+
+      - name: Checksum WASM artifacts
+        working-directory: contracts/target/wasm32v1-none/release
+        run: sha256sum -- *.wasm | tee SHA256SUMS.txt
+
+      - name: Attach artifacts to GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.release-please.outputs.tag_name }}
+          files: |
+            contracts/target/wasm32v1-none/release/*.wasm
+            contracts/target/wasm32v1-none/release/SHA256SUMS.txt

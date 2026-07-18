@@ -1,0 +1,60 @@
+name: Setup Rust & Soroban toolchain
+description: >
+  Installs the pinned Rust toolchain with the wasm32v1-none target, restores
+  the Cargo registry/target caches, and optionally installs the Stellar CLI
+  used to build Soroban contracts.
+
+inputs:
+  install-stellar-cli:
+    description: Whether to install the `stellar` CLI (needed for `stellar contract build`).
+    required: false
+    default: 'false'
+  stellar-cli-version:
+    description: Pinned stellar-cli release version (without leading "v").
+    required: false
+    default: '27.0.0'
+  components:
+    description: Extra rustup components to install (space separated).
+    required: false
+    default: 'rustfmt clippy'
+
+runs:
+  using: composite
+  steps:
+    - name: Setup Rust toolchain
+      uses: dtolnay/rust-toolchain@stable
+      with:
+        targets: wasm32v1-none
+        components: ${{ inputs.components }}
+
+    - name: Cache Cargo registry & build output
+      uses: Swatinem/rust-cache@v2
+      with:
+        workspaces: contracts -> target
+        cache-on-failure: true
+
+    - name: Cache Stellar CLI binary
+      if: inputs.install-stellar-cli == 'true'
+      id: stellar-cli-cache
+      uses: actions/cache@v4
+      with:
+        path: ~/.local/stellar-cli/bin
+        key: stellar-cli-${{ inputs.stellar-cli-version }}-${{ runner.os }}-${{ runner.arch }}
+
+    - name: Install Stellar CLI (prebuilt release binary)
+      if: inputs.install-stellar-cli == 'true' && steps.stellar-cli-cache.outputs.cache-hit != 'true'
+      shell: bash
+      run: |
+        set -euo pipefail
+        version="${{ inputs.stellar-cli-version }}"
+        mkdir -p ~/.local/stellar-cli/bin
+        curl -fsSL -o /tmp/stellar-cli.tar.gz \
+          "https://github.com/stellar/stellar-cli/releases/download/v${version}/stellar-cli-${version}-x86_64-unknown-linux-gnu.tar.gz"
+        tar -xzf /tmp/stellar-cli.tar.gz -C ~/.local/stellar-cli/bin
+
+    - name: Add Stellar CLI to PATH
+      if: inputs.install-stellar-cli == 'true'
+      shell: bash
+      run: |
+        echo "$HOME/.local/stellar-cli/bin" >> "$GITHUB_PATH"
+        ~/.local/stellar-cli/bin/stellar --version

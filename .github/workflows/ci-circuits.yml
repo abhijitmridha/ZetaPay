@@ -1,0 +1,88 @@
+name: CI - ZK Circuits
+
+# Reusable workflow: validates the Circom circuits under circuits/ still
+# compile. Deliberately does NOT run the full Groth16 trusted setup
+# (powers-of-tau download + zkey generation) - that download is ~a few
+# hundred MB and the setup is a one-time ceremony artifact, not something
+# that should re-run on every PR. Compilation catches the vast majority of
+# circuit-breaking changes (missing signals, broken includes, constraint
+# count regressions) far faster.
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+env:
+  CIRCOM_VERSION: '2.2.3'
+
+jobs:
+  compile:
+    name: Compile circuits
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: ./.github/actions/setup-node
+
+      - name: Cache circom binary
+        id: circom-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.local/bin/circom
+          key: circom-${{ env.CIRCOM_VERSION }}-${{ runner.os }}
+
+      - name: Install circom (prebuilt binary)
+        if: steps.circom-cache.outputs.cache-hit != 'true'
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.local/bin
+          curl -fsSL -o ~/.local/bin/circom \
+            "https://github.com/iden3/circom/releases/download/v${CIRCOM_VERSION}/circom-linux-amd64"
+          chmod +x ~/.local/bin/circom
+
+      - name: Add circom to PATH
+        run: echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: circom --version
+        run: circom --version
+
+      - name: Compile payroll circuit
+        run: |
+          yarn payroll:clean
+          yarn payroll:compile
+
+      - name: Compile pool circuits (deposit, withdraw)
+        run: |
+          yarn pool:clean
+          yarn pool:compile:deposit
+          yarn pool:compile:withdraw
+
+      - name: Validate generated artifacts
+        run: |
+          set -euo pipefail
+          check() {
+            if [ ! -s "$1" ]; then
+              echo "::error::Expected circuit artifact missing or empty: $1"
+              exit 1
+            fi
+            echo "$1 OK ($(du -h "$1" | cut -f1))"
+          }
+          check circuits/payroll/build/payroll.r1cs
+          check circuits/payroll/build/payroll_js/payroll.wasm
+          check circuits/pool/build/deposit.r1cs
+          check circuits/pool/build/deposit_js/deposit.wasm
+          check circuits/pool/build/withdraw.r1cs
+          check circuits/pool/build/withdraw_js/withdraw.wasm
+
+      - name: Upload circuit artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: circuits-${{ github.sha }}
+          path: |
+            circuits/payroll/build/payroll.r1cs
+            circuits/payroll/build/payroll.sym
+            circuits/pool/build/deposit.r1cs
+            circuits/pool/build/withdraw.r1cs
+          retention-days: 7
+          if-no-files-found: error
