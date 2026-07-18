@@ -1,0 +1,185 @@
+# -------------------------------------------------------
+# Dependencies
+# -------------------------------------------------------
+
+/node_modules
+/.pnp
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/versions
+
+# -------------------------------------------------------
+# Next.js
+# -------------------------------------------------------
+
+/.next/
+/out/
+/build
+
+# -------------------------------------------------------
+# Coverage
+# -------------------------------------------------------
+
+/coverage
+
+# -------------------------------------------------------
+# Environment
+# -------------------------------------------------------
+
+.env*
+!.env.example
+
+# -------------------------------------------------------
+# Vercel
+# -------------------------------------------------------
+
+.vercel
+
+# -------------------------------------------------------
+# TypeScript
+# -------------------------------------------------------
+
+*.tsbuildinfo
+next-env.d.ts
+
+# -------------------------------------------------------
+# Drizzle
+# -------------------------------------------------------
+
+/drizzle/migrations/meta/
+/drizzle/migrations/*.sql
+!/drizzle/migrations/0000_*.sql
+
+# -------------------------------------------------------
+# Supabase
+# -------------------------------------------------------
+
+/supabase/.branches
+/supabase/.temp
+
+# -------------------------------------------------------
+# Stellar
+# -------------------------------------------------------
+
+/.stellar/
+
+# -------------------------------------------------------
+# Rust / Soroban
+# -------------------------------------------------------
+
+/contracts/target/
+/contracts/test_snapshots/
+
+# Keep Cargo.lock committed
+
+# -------------------------------------------------------
+# Zero Knowledge
+# -------------------------------------------------------
+
+# Legacy artifacts
+/circuits/target/
+/circuits/proofs/
+/circuits/verifier/
+
+# Powers of Tau
+/circuits/payroll/ptau/
+/circuits/pool/ptau/
+
+# =======================================================
+# Payroll generated artifacts
+# =======================================================
+
+/circuits/payroll/build/*.wtns
+/circuits/payroll/build/*.r1cs
+/circuits/payroll/build/*.sym
+/circuits/payroll/build/*_0000.zkey
+
+# Ignore generated json
+/circuits/payroll/build/*.json
+
+# Keep committed artifacts
+!/circuits/payroll/build/proof.json
+!/circuits/payroll/build/public.json
+!/circuits/payroll/build/verification_key.json
+
+# =======================================================
+# Shielded Pool generated artifacts
+# =======================================================
+
+/circuits/pool/build/*.wtns
+/circuits/pool/build/*.r1cs
+/circuits/pool/build/*.sym
+/circuits/pool/build/*_0000.zkey
+
+# Ignore generated json
+/circuits/pool/build/*.json
+
+# Keep committed artifacts
+!/circuits/pool/build/deposit_proof.json
+!/circuits/pool/build/deposit_public.json
+!/circuits/pool/build/deposit_verification_key.json
+
+!/circuits/pool/build/withdraw_proof.json
+!/circuits/pool/build/withdraw_public.json
+!/circuits/pool/build/withdraw_verification_key.json
+
+# =======================================================
+# Rust generated fixtures
+# =======================================================
+
+!/contracts/zetapay-verifier/src/fixtures.rs
+!/contracts/zetapay-payroll/src/fixtures.rs
+!/contracts/zetapay-pool/src/fixtures.rs
+
+# -------------------------------------------------------
+# IDE
+# -------------------------------------------------------
+
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# -------------------------------------------------------
+# Logs
+# -------------------------------------------------------
+
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# -------------------------------------------------------
+# Temporary
+# -------------------------------------------------------
+
+tmp/
+temp/
+*.tmp
+
+# -------------------------------------------------------
+# Distribution
+# -------------------------------------------------------
+
+dist/
+.storybook-out/
+
+# -------------------------------------------------------
+# Operating System
+# -------------------------------------------------------
+
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# -------------------------------------------------------
+# Misc
+# -------------------------------------------------------
+
+*.pem

@@ -1,0 +1,22 @@
+# Gitleaks configuration - extends the default upstream ruleset.
+# https://github.com/gitleaks/gitleaks#configuration
+#
+# Circuit/contract test fixtures (contracts/**/src/fixtures.rs,
+# circuits/**/build/*.json) contain large constant byte arrays and Groth16
+# proof/verification-key material used only in tests against Stellar
+# testnet - these are not secrets, but flag them explicitly here rather than
+# relying on scanners to guess that.
+title = "zetapay gitleaks config"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Test fixtures and generated ZK artifacts, not secrets"
+paths = [
+  '''contracts/.*/src/fixtures\.rs''',
+  '''contracts/.*/test_snapshots/.*''',
+  '''circuits/.*/build/.*''',
+  '''\.env\.example''',
+  '''deploy/environments/.*\.env\.example''',
+]
